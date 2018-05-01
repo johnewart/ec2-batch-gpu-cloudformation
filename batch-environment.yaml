@@ -1,7 +1,7 @@
 Description: Batch compute environment with GPUs
 Parameters:
   ImageId:
-    Description: Image ID for base EC2 instance - use the one created by the batch gpu AMI CF template
+    Description: Image ID for base EC2 instance 
     Type: AWS::EC2::Image::Id
   InstanceType:
     Description: Instance type to launch EC2 instances.
@@ -87,7 +87,7 @@ Resources:
     Type: 'AWS::Batch::JobDefinition'
     Properties:
       Type: container
-      JobDefinitionName: nvidia-smi
+      JobDefinitionName: !Sub "nvidia-smi-test-${AWS::StackName}"
       RetryStrategy:
         Attempts: 1
       ContainerProperties:

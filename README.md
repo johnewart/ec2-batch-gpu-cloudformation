@@ -29,6 +29,8 @@ they can access the GPU.
 
 6. Signals to the `AMICreate` wait condition when it's done (which, in turn invokes Lambda to create the AMI)
 
+7. Outputs the new AMI ID for use in the `batch-environment.yaml` template
+
 
 #### Batch Environment 
 
