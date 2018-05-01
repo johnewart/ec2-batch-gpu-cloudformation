@@ -1,0 +1,108 @@
+Description: Batch compute environment with GPUs
+Parameters:
+  ImageId:
+    Description: Image ID for base EC2 instance - use the one created by the batch gpu AMI CF template
+    Type: AWS::EC2::Image::Id
+  InstanceType:
+    Description: Instance type to launch EC2 instances.
+    Type: String
+    Default: g3.4xlarge
+  KeyPair:
+    Description: SSH Keypair
+    Type: AWS::EC2::KeyPair::KeyName
+  SecurityGroupIds:
+    Description: Security group IDs
+    Type: List<AWS::EC2::SecurityGroup::Id>
+  SubnetIds:
+    Description: Subnet IDs
+    Type: List<AWS::EC2::Subnet::Id>
+
+Resources:
+  JobQueue:
+    Type: "AWS::Batch::JobQueue"
+    Properties:
+      ComputeEnvironmentOrder: 
+        - ComputeEnvironment: !Ref GPUComputeEnvironment 
+          Order: 1
+      Priority: 1
+      JobQueueName: !Sub "GPUJobQueue-${AWS::StackName}"
+
+  InstanceProfile: 
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles: 
+        - !Ref InstanceRole
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+      - "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
+      - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+      - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+
+  BatchServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "batch.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+
+  GPUComputeEnvironment:
+    Type: "AWS::Batch::ComputeEnvironment"
+    Properties:
+      Type: MANAGED
+      ServiceRole: !GetAtt BatchServiceRole.Arn
+      ComputeEnvironmentName: !Sub "GPUComputeEnvironment-${AWS::StackName}"
+      ComputeResources: 
+        MaxvCpus: 100
+        MinvCpus: 0
+        SecurityGroupIds: !Ref SecurityGroupIds
+        Subnets: !Ref SubnetIds
+        Type: EC2
+        ImageId: !Ref ImageId
+        InstanceRole: !GetAtt InstanceProfile.Arn
+        InstanceTypes: 
+          - g3.4xlarge
+        Ec2KeyPair: !Ref KeyPair
+
+  GPUJobDefinition:
+    Type: 'AWS::Batch::JobDefinition'
+    Properties:
+      Type: container
+      JobDefinitionName: nvidia-smi
+      RetryStrategy:
+        Attempts: 1
+      ContainerProperties:
+        MountPoints:
+          - ReadOnly: false
+            SourceVolume: nvidia
+            ContainerPath: /usr/local/nvidia
+        Volumes:
+          - Host:
+              SourcePath: /var/lib/nvidia-docker/volumes/nvidia_driver/latest
+            Name: nvidia
+        Command:
+          - nvidia-smi
+        Memory: 2000
+        Privileged: true
+        ReadonlyRootFilesystem: true
+        Vcpus: 2
+        Image: nvidia/cuda
